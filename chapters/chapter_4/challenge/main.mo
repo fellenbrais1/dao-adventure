@@ -238,7 +238,7 @@ actor {
                     let data : ?Proposal = proposals.get(proposalId);
                     switch (data) {
                         case(null) {
-                            return #err("No data found.");
+                            return #err("No data.");
                         };
                         case(?proposal) {
                             // Debug.print(debug_show(data));
