@@ -7,6 +7,8 @@ import Option "mo:base/Option";
 import Nat64 "mo:base/Nat64";
 import Debug "mo:base/Debug";
 import Time "mo:base/Time";
+import Blob "mo:base/Blob";
+import Array "mo:base/Array";
 
 import Types "types";
 actor {
@@ -234,38 +236,72 @@ actor {
                         yesOrNo = vote;
                     };
                     let data : ?Proposal = proposals.get(proposalId);
-                    if (data == null) {
-                        return #err("No fucking data.");
-                    } else {
-                        Debug.print(debug_show(data));
-                        return #err("There is data.");
-                        data.votes.push(newVote);
-                        if (newVote.yesOrNo == true) {
-                            data.voteScore += newVote.votingPower;
-                        } else {
-                            data.voteScore -= newVote.votingPower;
+                    switch (data) {
+                        case(null) {
+                            return #err("No data found.");
                         };
-                        if (data.voteScore <= -100) {
-                            Debug.print(debug_show("Proposal fails, archiving proposal."));
-                            data.status := #Rejected;
-                            data.executed := null;
-                            return #err("Proposal fails.");
-                        } else if (data.voteScore >= 100) {
-                            Debug.print(debug_show("Proposal passes, enacting now."));
-                            data.status := #Accepted;
-                            data.executed := Time.now();
-                            if (data.content == #ChangeManifesto) {
-                                await setManifesto(data.content);
+                        case(?proposal) {
+                            // Debug.print(debug_show(data));
+                            // return #err("There is data.");
+                            data.votes := Array.append(data.votes, [newVote]);
+                            if (newVote.yesOrNo == true) {
+                                data.voteScore += newVote.votingPower;
                             } else {
-                                await addGoal(data.content);
+                                data.voteScore -= newVote.votingPower;
                             };
-                            return #ok();
-                        } else {
-                            Debug.print(debug_show("Proposal still open for voting."));
-                            return #ok;
+                            if (data.voteScore <= -100) {
+                                Debug.print(debug_show("Proposal fails, archiving proposal."));
+                                data.status := #Rejected;
+                                data.executed := null;
+                                return #err("Proposal fails.");
+                            } else if (data.voteScore >= 100) {
+                                Debug.print(debug_show("Proposal passes, enacting now."));
+                                data.status := #Accepted;
+                                data.executed := Time.now();
+                                if (data.content == #ChangeManifesto) {
+                                    await setManifesto(data.content);
+                                } else {
+                                    await addGoal(data.content);
+                                };
+                                return #ok();
+                            } else {
+                                Debug.print(debug_show("Proposal still open for voting."));
+                                return #ok;
+                            };
                         };
                     };
-                    return #err("No data found to return.")
+                    // if (data == null) {
+                    //     return #err("No fucking data.");
+                    // } else {
+                    //     Debug.print(debug_show(data));
+                    //     return #err("There is data.");
+                    //     data.votes.push(newVote);
+                    //     if (newVote.yesOrNo == true) {
+                    //         data.voteScore += newVote.votingPower;
+                    //     } else {
+                    //         data.voteScore -= newVote.votingPower;
+                    //     };
+                    //     if (data.voteScore <= -100) {
+                    //         Debug.print(debug_show("Proposal fails, archiving proposal."));
+                    //         data.status := #Rejected;
+                    //         data.executed := null;
+                    //         return #err("Proposal fails.");
+                    //     } else if (data.voteScore >= 100) {
+                    //         Debug.print(debug_show("Proposal passes, enacting now."));
+                    //         data.status := #Accepted;
+                    //         data.executed := Time.now();
+                    //         if (data.content == #ChangeManifesto) {
+                    //             await setManifesto(data.content);
+                    //         } else {
+                    //             await addGoal(data.content);
+                    //         };
+                    //         return #ok();
+                    //     } else {
+                    //         Debug.print(debug_show("Proposal still open for voting."));
+                    //         return #ok;
+                    //     };
+                    // };
+                    // return #err("No data found to return.")
                 };
             };
         };
