@@ -7,7 +7,6 @@ import Option "mo:base/Option";
 import Nat64 "mo:base/Nat64";
 import Debug "mo:base/Debug";
 import Time "mo:base/Time";
-import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 
 import Types "types";
@@ -185,7 +184,7 @@ actor {
             let burnResult = await burn(caller, 1);
             switch (burnResult) {
                 case(#ok()) {
-                    let newProposal : Proposal = {
+                    var newProposal : Proposal = {
                         id = nextProposalId;
                         content = proposalContent;
                         creator = caller;
@@ -240,68 +239,83 @@ actor {
                         case(null) {
                             return #err("No data.");
                         };
-                        case(?proposal) {
-                            // Debug.print(debug_show(data));
-                            // return #err("There is data.");
-                            data.votes := Array.append(data.votes, [newVote]);
-                            if (newVote.yesOrNo == true) {
-                                data.voteScore += newVote.votingPower;
-                            } else {
-                                data.voteScore -= newVote.votingPower;
+                        case(?foundProposal) {
+                            let copyProposal = {
+                                id : Nat64 = foundProposal.id;
+                                content : ProposalContent = foundProposal.content;
+                                creator : Principal = foundProposal.creator;
+                                created : Time.Time = foundProposal.created;
+                                var executed : ?Time.Time = foundProposal.executed;
+                                var votes : [Vote] = foundProposal.votes;
+                                var voteScore : Int = foundProposal.voteScore;
+                                var status = foundProposal.status;
                             };
-                            if (data.voteScore <= -100) {
+                            copyProposal.votes := Array.append(foundProposal.votes, [newVote]);
+                            if (newVote.yesOrNo == true) {
+                                copyProposal.voteScore += newVote.votingPower;
+                            } else {
+                                copyProposal.voteScore -= newVote.votingPower;
+                            };
+                            if (copyProposal.voteScore <= -100) {
                                 Debug.print(debug_show("Proposal fails, archiving proposal."));
-                                data.status := #Rejected;
-                                data.executed := null;
-                                return #err("Proposal fails.");
-                            } else if (data.voteScore >= 100) {
-                                Debug.print(debug_show("Proposal passes, enacting now."));
-                                data.status := #Accepted;
-                                data.executed := Time.now();
-                                if (data.content == #ChangeManifesto) {
-                                    await setManifesto(data.content);
-                                } else {
-                                    await addGoal(data.content);
+                                copyProposal.status := #Rejected;
+                                copyProposal.executed := null;
+                                let writeProposal = {
+                                    id : Nat64 = copyProposal.id;
+                                    content : ProposalContent = copyProposal.content;
+                                    creator : Principal = copyProposal.creator;
+                                    created : Time.Time = copyProposal.created;
+                                    executed : ?Time.Time = copyProposal.executed;
+                                    votes : [Vote] = copyProposal.votes;
+                                    voteScore : Int = copyProposal.voteScore;
+                                    status = copyProposal.status;
                                 };
+                                proposals.delete(proposalId);
+                                proposals.put(proposalId, writeProposal);
+                                return #err("Proposal fails.");
+                            } else if (copyProposal.voteScore >= 100) {
+                                Debug.print(debug_show("Proposal passes, enacting now."));
+                                copyProposal.status := #Accepted;
+                                copyProposal.executed := ?Time.now();
+                                switch (copyProposal.content) {
+                                    case(#ChangeManifesto(text)) {
+                                        await setManifesto(text);
+                                    };
+                                    case(#AddGoal(text)) {
+                                        await addGoal(text);
+                                    };
+                                };
+                                let writeProposal = {
+                                    id : Nat64 = copyProposal.id;
+                                    content : ProposalContent = copyProposal.content;
+                                    creator : Principal = copyProposal.creator;
+                                    created : Time.Time = copyProposal.created;
+                                    executed : ?Time.Time = copyProposal.executed;
+                                    votes : [Vote] = copyProposal.votes;
+                                    voteScore : Int = copyProposal.voteScore;
+                                    status = copyProposal.status;
+                                };
+                                proposals.delete(proposalId);
+                                proposals.put(proposalId, writeProposal);
                                 return #ok();
                             } else {
                                 Debug.print(debug_show("Proposal still open for voting."));
+                                let writeProposal = {
+                                    id : Nat64 = copyProposal.id;
+                                    content : ProposalContent = copyProposal.content;
+                                    creator : Principal = copyProposal.creator;
+                                    created : Time.Time = copyProposal.created;
+                                    executed : ?Time.Time = copyProposal.executed;
+                                    votes : [Vote] = copyProposal.votes;
+                                    voteScore : Int = copyProposal.voteScore;
+                                    status = copyProposal.status;
+                                };
+                                proposals.delete(proposalId);
+                                proposals.put(proposalId, writeProposal);
                                 return #ok;
                             };
                         };
                     };
-                    // if (data == null) {
-                    //     return #err("No fucking data.");
-                    // } else {
-                    //     Debug.print(debug_show(data));
-                    //     return #err("There is data.");
-                    //     data.votes.push(newVote);
-                    //     if (newVote.yesOrNo == true) {
-                    //         data.voteScore += newVote.votingPower;
-                    //     } else {
-                    //         data.voteScore -= newVote.votingPower;
-                    //     };
-                    //     if (data.voteScore <= -100) {
-                    //         Debug.print(debug_show("Proposal fails, archiving proposal."));
-                    //         data.status := #Rejected;
-                    //         data.executed := null;
-                    //         return #err("Proposal fails.");
-                    //     } else if (data.voteScore >= 100) {
-                    //         Debug.print(debug_show("Proposal passes, enacting now."));
-                    //         data.status := #Accepted;
-                    //         data.executed := Time.now();
-                    //         if (data.content == #ChangeManifesto) {
-                    //             await setManifesto(data.content);
-                    //         } else {
-                    //             await addGoal(data.content);
-                    //         };
-                    //         return #ok();
-                    //     } else {
-                    //         Debug.print(debug_show("Proposal still open for voting."));
-                    //         return #ok;
-                    //     };
-                    // };
-                    // return #err("No data found to return.")
                 };
             };
         };
